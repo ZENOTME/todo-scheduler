@@ -14,7 +14,6 @@ import {
   ArrowDown, 
   Plus, 
   Trash2, 
-  GripVertical,
   SortAsc,
   SortDesc
 } from 'lucide-react';
@@ -36,7 +35,6 @@ export const TagSortManager: React.FC<TagSortManagerProps> = ({ trigger }) => {
   const [open, setOpen] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [selectedTag, setSelectedTag] = useState<string>('');
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Extract all unique tag keys from events
   useEffect(() => {
@@ -90,41 +88,7 @@ export const TagSortManager: React.FC<TagSortManagerProps> = ({ trigger }) => {
     }
   };
 
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-  };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    
-    if (draggedIndex === null || draggedIndex === dropIndex) {
-      setDraggedIndex(null);
-      return;
-    }
-
-    const rules = [...sortPreferences.tagSortRules];
-    const draggedRule = rules[draggedIndex];
-    
-    // Remove dragged item
-    rules.splice(draggedIndex, 1);
-    
-    // Insert at new position
-    rules.splice(dropIndex, 0, draggedRule);
-    
-    // Update order values
-    rules.forEach((rule, idx) => {
-      rule.order = idx;
-    });
-    
-    reorderTagSortRules(rules);
-    setDraggedIndex(null);
-  };
 
   const getTagValuePreview = (tagKey: string) => {
     const allValues = events
@@ -238,24 +202,15 @@ export const TagSortManager: React.FC<TagSortManagerProps> = ({ trigger }) => {
           {sortPreferences.enabled && sortPreferences.tagSortRules.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Sort Rules (Drag to reorder)</CardTitle>
+                <CardTitle className="text-base">Sort Rules</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   {sortPreferences.tagSortRules.map((rule, index) => (
                       <div
                         key={rule.tagKey}
-                        className={`
-                          flex items-center gap-3 p-3 border rounded-lg bg-white
-                          ${draggedIndex === index ? 'opacity-50' : ''}
-                        `}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, index)}
+                        className="flex items-center gap-3 p-3 border rounded-lg bg-white"
                       >
-                        {/* Drag Handle */}
-                        <GripVertical className="w-4 h-4 text-gray-400 cursor-grab" />
                         
                         {/* Order Number */}
                         <Badge variant="outline" className="w-8 h-8 rounded-full flex items-center justify-center">

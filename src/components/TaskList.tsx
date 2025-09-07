@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { TagDisplay } from './TagDisplay';
 import { 
   CheckCircle, 
   Clock, 
@@ -52,7 +53,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   selectedEvent,
   showDependencies = false,
 }) => {
-  const { events, fetchEvents, getEventDependencies } = useEventStore();
+  const { events, fetchEvents, getEventDependencies, getSortedEvents } = useEventStore();
   const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({});
   const [dependencies, setDependencies] = useState<Record<string, TodoEvent[]>>({});
   const [loading, setLoading] = useState(false);
@@ -77,8 +78,9 @@ export const TaskList: React.FC<TaskListProps> = ({
     checkDependenciesStatus();
   }, [events]);
 
-  // Filter events by status
-  const filteredEvents = events.filter(event => event.status === status);
+  // Filter events by status and apply sorting
+  const baseFilteredEvents = events.filter(event => event.status === status);
+  const filteredEvents = getSortedEvents(baseFilteredEvents);
 
   // Toggle expand/collapse state
   const toggleExpand = async (eventId: string) => {
@@ -197,15 +199,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                         )}
 
                         {/* Tags */}
-                        {Object.keys(event.tags).length > 0 && (
-                          <div className="flex flex-wrap gap-1 mb-2">
-                            {Object.entries(event.tags).map(([key, value]) => (
-                              <Badge key={key} variant="outline" className="text-xs">
-                                {key}: {value}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+                        <TagDisplay tags={event.tags} className="mb-2" />
 
                         {/* Bottom info */}
                         <div className="flex items-center justify-between text-xs text-gray-500">

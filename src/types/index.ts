@@ -56,3 +56,14 @@ export interface EventEdge {
   type: 'smoothstep';
   animated: boolean;
 }
+
+export interface TagSortRule {
+  tagKey: string;
+  order: number;
+  direction: 'asc' | 'desc';
+}
+
+export interface SortPreferences {
+  tagSortRules: TagSortRule[];
+  enabled: boolean;
+}

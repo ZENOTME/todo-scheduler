@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar, Settings, HelpCircle, Plus } from 'lucide-react';
 import { EventFormDialog } from './EventFormDialog';
 import { TaskList } from './TaskList';
+import { TagSortManager } from './TagSortManager';
 
 export const MainLayout: React.FC = () => {
   const { events, deleteEvent, selectedEvent, setSelectedEvent, fetchEvents, updateEventStatus } = useEventStore();
@@ -76,10 +77,14 @@ export const MainLayout: React.FC = () => {
                 Add Event
               </Button>
               
-              <Button variant="ghost" size="sm" className="text-white hover:bg-primary-500">
-                <Settings className="w-4 h-4 mr-1" />
-                Settings
-              </Button>
+              <TagSortManager 
+                trigger={
+                  <Button variant="ghost" size="sm" className="text-white hover:bg-primary-500">
+                    <Settings className="w-4 h-4 mr-1" />
+                    Sort Settings
+                  </Button>
+                }
+              />
               
               <Button variant="ghost" size="sm" className="text-white hover:bg-primary-500">
                 <HelpCircle className="w-4 h-4 mr-1" />

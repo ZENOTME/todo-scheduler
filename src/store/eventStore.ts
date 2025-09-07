@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { TodoEvent, EventFilter, CreateEventRequest, UpdateEventRequest, EventStatus } from '@/types';
+import { persist } from 'zustand/middleware';
+import { TodoEvent, EventFilter, CreateEventRequest, UpdateEventRequest, EventStatus, SortPreferences, TagSortRule } from '@/types';
 import { invoke } from '@tauri-apps/api/core';
 
 interface EventStore {
@@ -8,6 +9,7 @@ interface EventStore {
   filter: EventFilter;
   loading: boolean;
   error: string | null;
+  sortPreferences: SortPreferences;
   
   // Actions
   setEvents: (events: TodoEvent[]) => void;
@@ -15,6 +17,11 @@ interface EventStore {
   setFilter: (filter: EventFilter) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setSortPreferences: (preferences: SortPreferences) => void;
+  updateTagSortRule: (tagKey: string, direction: 'asc' | 'desc', order: number) => void;
+  removeTagSortRule: (tagKey: string) => void;
+  reorderTagSortRules: (rules: TagSortRule[]) => void;
+  getSortedEvents: (events: TodoEvent[]) => TodoEvent[];
   
   // API calls
   fetchEvents: () => Promise<void>;
@@ -27,18 +34,104 @@ interface EventStore {
   getEventDependents: (id: string) => Promise<TodoEvent[]>;
 }
 
-export const useEventStore = create<EventStore>((set, get) => ({
-  events: [],
-  selectedEvent: null,
-  filter: {},
-  loading: false,
-  error: null,
+export const useEventStore = create<EventStore>()(
+  persist(
+    (set, get) => ({
+      events: [],
+      selectedEvent: null,
+      filter: {},
+      loading: false,
+      error: null,
+      sortPreferences: {
+        tagSortRules: [],
+        enabled: false,
+      },
 
-  setEvents: (events) => set({ events }),
-  setSelectedEvent: (event) => set({ selectedEvent: event }),
-  setFilter: (filter) => set({ filter }),
-  setLoading: (loading) => set({ loading }),
-  setError: (error) => set({ error }),
+      setEvents: (events) => set({ events }),
+      setSelectedEvent: (event) => set({ selectedEvent: event }),
+      setFilter: (filter) => set({ filter }),
+      setLoading: (loading) => set({ loading }),
+      setError: (error) => set({ error }),
+      setSortPreferences: (preferences) => set({ sortPreferences: preferences }),
+
+      updateTagSortRule: (tagKey, direction, order) => {
+        const { sortPreferences } = get();
+        const existingRuleIndex = sortPreferences.tagSortRules.findIndex(rule => rule.tagKey === tagKey);
+        
+        let newRules = [...sortPreferences.tagSortRules];
+        
+        if (existingRuleIndex >= 0) {
+          newRules[existingRuleIndex] = { tagKey, direction, order };
+        } else {
+          newRules.push({ tagKey, direction, order });
+        }
+        
+        // Sort rules by order
+        newRules.sort((a, b) => a.order - b.order);
+        
+        set({
+          sortPreferences: {
+            ...sortPreferences,
+            tagSortRules: newRules,
+          }
+        });
+      },
+
+      removeTagSortRule: (tagKey) => {
+        const { sortPreferences } = get();
+        const newRules = sortPreferences.tagSortRules.filter(rule => rule.tagKey !== tagKey);
+        
+        set({
+          sortPreferences: {
+            ...sortPreferences,
+            tagSortRules: newRules,
+          }
+        });
+      },
+
+      reorderTagSortRules: (rules) => {
+        const { sortPreferences } = get();
+        set({
+          sortPreferences: {
+            ...sortPreferences,
+            tagSortRules: rules,
+          }
+        });
+      },
+
+      getSortedEvents: (events) => {
+        const { sortPreferences } = get();
+        
+        if (!sortPreferences.enabled || sortPreferences.tagSortRules.length === 0) {
+          return events;
+        }
+
+        return [...events].sort((a, b) => {
+          for (const rule of sortPreferences.tagSortRules) {
+            const aValue = a.tags[rule.tagKey] || '';
+            const bValue = b.tags[rule.tagKey] || '';
+            
+            // Handle numeric values
+            const aNum = parseFloat(aValue);
+            const bNum = parseFloat(bValue);
+            const isNumeric = !isNaN(aNum) && !isNaN(bNum);
+            
+            let comparison = 0;
+            
+            if (isNumeric) {
+              comparison = aNum - bNum;
+            } else {
+              comparison = aValue.localeCompare(bValue);
+            }
+            
+            if (comparison !== 0) {
+              return rule.direction === 'asc' ? comparison : -comparison;
+            }
+          }
+          
+          return 0;
+        });
+      },
 
   fetchEvents: async () => {
     try {
@@ -207,4 +300,12 @@ export const useEventStore = create<EventStore>((set, get) => ({
       return [];
     }
   },
-}));
+}),
+{
+  name: 'event-store',
+  partialize: (state) => ({
+    sortPreferences: state.sortPreferences,
+  }),
+}
+)
+);

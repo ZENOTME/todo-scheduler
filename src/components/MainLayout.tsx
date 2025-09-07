@@ -6,6 +6,7 @@ import { Calendar, Settings, HelpCircle, Plus } from 'lucide-react';
 import { EventFormDialog } from './EventFormDialog';
 import { TaskList } from './TaskList';
 import { TagSortManager } from './TagSortManager';
+import { DatabaseManager } from './DatabaseManager';
 
 export const MainLayout: React.FC = () => {
   const { events, deleteEvent, selectedEvent, setSelectedEvent, fetchEvents, updateEventStatus } = useEventStore();
@@ -49,6 +50,11 @@ export const MainLayout: React.FC = () => {
     await updateEventStatus(event.id, EventStatus.Completed);
   };
 
+  const handleDatabaseChange = async (dbPath: string) => {
+    // Reload events from the new database
+    await fetchEvents();
+  };
+
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Top Navigation */}
@@ -76,6 +82,10 @@ export const MainLayout: React.FC = () => {
                 <Plus className="w-4 h-4 mr-1" />
                 Add Event
               </Button>
+              
+              <DatabaseManager 
+                onDatabaseChange={handleDatabaseChange}
+              />
               
               <TagSortManager 
                 trigger={

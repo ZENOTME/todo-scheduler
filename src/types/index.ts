@@ -67,3 +67,10 @@ export interface SortPreferences {
   tagSortRules: TagSortRule[];
   enabled: boolean;
 }
+
+export interface DatabaseInfo {
+  path: string;
+  name: string;
+  last_modified: string;
+  size: string;
+}

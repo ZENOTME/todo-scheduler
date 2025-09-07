@@ -1,9 +1,26 @@
 use crate::database::Database;
 use crate::models::{TodoEvent, CreateEventRequest, UpdateEventRequest, EventFilter};
 use std::sync::Mutex;
+use std::path::Path;
+use std::fs;
 use tauri::State;
+use serde::{Deserialize, Serialize};
+
+pub struct AppState {
+    pub db: Mutex<Database>,
+    pub current_db_path: Mutex<String>,
+}
 
 pub type DbState = Mutex<Database>;
+pub type DbPathState = Mutex<String>;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DatabaseInfo {
+    pub path: String,
+    pub name: String,
+    pub last_modified: String,
+    pub size: String,
+}
 
 #[tauri::command]
 pub async fn create_event(
@@ -140,3 +157,86 @@ pub async fn get_event_dependents(
     
     Ok(dependents)
 }
+
+// Database management commands
+
+#[tauri::command]
+pub async fn get_current_database_path(
+    db_path: State<'_, DbPathState>,
+) -> Result<String, String> {
+    let path = db_path.lock().map_err(|e| format!("Path lock error: {}", e))?;
+    Ok(path.clone())
+}
+
+#[tauri::command]
+pub async fn get_recent_databases() -> Result<Vec<DatabaseInfo>, String> {
+    // For now, return an empty list. In a real implementation,
+    // you'd read from a configuration file or registry
+    Ok(vec![])
+}
+
+#[tauri::command]
+pub async fn create_new_database(path: String) -> Result<(), String> {
+    println!("Creating new database at: {}", path);
+    
+    // Ensure the directory exists
+    if let Some(parent) = Path::new(&path).parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    }
+    
+    // Create a new database instance to initialize the file
+    Database::new(&path)
+        .map_err(|e| format!("Failed to create database: {}", e))?;
+    
+    println!("Database created successfully at: {}", path);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn validate_database(path: String) -> Result<(), String> {
+    println!("Validating database at: {}", path);
+    
+    // Check if file exists
+    if !Path::new(&path).exists() {
+        return Err("Database file does not exist".to_string());
+    }
+    
+    // Try to open the database to validate it
+    Database::new(&path)
+        .map_err(|e| format!("Invalid database file: {}", e))?;
+    
+    println!("Database validation successful: {}", path);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn switch_database(
+    db: State<'_, DbState>,
+    db_path: State<'_, DbPathState>,
+    path: String,
+) -> Result<(), String> {
+    println!("Switching to database: {}", path);
+    
+    // Validate the new database first
+    validate_database(path.clone()).await?;
+    
+    // Create new database connection
+    let new_db = Database::new(&path)
+        .map_err(|e| format!("Failed to open database: {}", e))?;
+    
+    // Replace the current database connection
+    let mut db_guard = db.lock()
+        .map_err(|e| format!("Database lock error: {}", e))?;
+    *db_guard = new_db;
+    
+    // Update the current database path
+    let mut path_guard = db_path.lock()
+        .map_err(|e| format!("Path lock error: {}", e))?;
+    *path_guard = path.clone();
+    
+    println!("Database switched successfully to: {}", path);
+    Ok(())
+}
+
+// Remove the custom dialog commands since we'll use the plugin properly

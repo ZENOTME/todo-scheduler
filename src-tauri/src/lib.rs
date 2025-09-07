@@ -11,6 +11,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // Get app data directory
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data directory");
@@ -19,10 +20,11 @@ pub fn run() {
             // Initialize database
             let db_path = app_data_dir.join("todo_scheduler.db");
             println!("Database path: {:?}", db_path);
-            let database = Database::new(db_path).expect("Failed to initialize database");
+            let database = Database::new(&db_path).expect("Failed to initialize database");
             
-            // Store database in app state
+            // Store database and path in app state
             app.manage(Mutex::new(database));
+            app.manage(Mutex::new(db_path.to_string_lossy().to_string()));
             
             Ok(())
         })
@@ -35,7 +37,12 @@ pub fn run() {
             commands::delete_event,
             commands::filter_events,
             commands::get_event_dependencies,
-            commands::get_event_dependents
+            commands::get_event_dependents,
+            commands::get_current_database_path,
+            commands::get_recent_databases,
+            commands::create_new_database,
+            commands::validate_database,
+            commands::switch_database
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

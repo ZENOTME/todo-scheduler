@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { TodoEvent, EventFilter, CreateEventRequest, UpdateEventRequest, EventStatus, SortPreferences, TagSortRule } from '@/types';
+import { TodoEvent, EventFilter, CreateEventRequest, UpdateEventRequest, EventStatus, SortPreferences, TagSortRule, DatabaseInfo } from '@/types';
 import { invoke } from '@tauri-apps/api/core';
 
 interface EventStore {
@@ -32,6 +32,13 @@ interface EventStore {
   filterEvents: (filter: EventFilter) => Promise<void>;
   getEventDependencies: (id: string) => Promise<TodoEvent[]>;
   getEventDependents: (id: string) => Promise<TodoEvent[]>;
+  
+  // Database management
+  getCurrentDatabasePath: () => Promise<string>;
+  getRecentDatabases: () => Promise<DatabaseInfo[]>;
+  createNewDatabase: (path: string) => Promise<void>;
+  validateDatabase: (path: string) => Promise<void>;
+  switchDatabase: (path: string) => Promise<void>;
 }
 
 export const useEventStore = create<EventStore>()(
@@ -298,6 +305,60 @@ export const useEventStore = create<EventStore>()(
     } catch (error) {
       set({ error: error as string });
       return [];
+    }
+  },
+
+  // Database management methods
+  getCurrentDatabasePath: async () => {
+    try {
+      const path = await invoke<string>('get_current_database_path');
+      return path;
+    } catch (error) {
+      set({ error: error as string });
+      throw error;
+    }
+  },
+
+  getRecentDatabases: async () => {
+    try {
+      const databases = await invoke<DatabaseInfo[]>('get_recent_databases');
+      return databases;
+    } catch (error) {
+      set({ error: error as string });
+      return [];
+    }
+  },
+
+  createNewDatabase: async (path) => {
+    try {
+      set({ loading: true, error: null });
+      await invoke('create_new_database', { path });
+      set({ loading: false });
+    } catch (error) {
+      set({ error: error as string, loading: false });
+      throw error;
+    }
+  },
+
+  validateDatabase: async (path) => {
+    try {
+      await invoke('validate_database', { path });
+    } catch (error) {
+      set({ error: error as string });
+      throw error;
+    }
+  },
+
+  switchDatabase: async (path) => {
+    try {
+      set({ loading: true, error: null });
+      await invoke('switch_database', { path });
+      // After switching database, reload events
+      const events = await invoke<TodoEvent[]>('get_all_events');
+      set({ events, loading: false, selectedEvent: null });
+    } catch (error) {
+      set({ error: error as string, loading: false });
+      throw error;
     }
   },
 }),

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { TodoEvent, EventStatus } from '@/types';
 import { useEventStore } from '@/store/eventStore';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,17 @@ export const MainLayout: React.FC = () => {
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [editingEvent, setEditingEvent] = useState<TodoEvent | null>(null);
+  
+  // Column width management - use percentages for equal distribution
+  const [columnWidths, setColumnWidths] = useState({
+    ready: 33.33,
+    blocked: 33.33,
+    completed: 33.34
+  });
+  const [isDragging, setIsDragging] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startX = useRef<number>(0);
+  const startWidths = useRef<{ ready: number; blocked: number; completed: number }>({ ready: 0, blocked: 0, completed: 0 });
   
   // Initialize events loading
   useEffect(() => {
@@ -53,6 +64,52 @@ export const MainLayout: React.FC = () => {
   const handleDatabaseChange = async (dbPath: string) => {
     // Reload events from the new database
     await fetchEvents();
+  };
+
+  // Handle column resizing
+  const handleMouseDown = (divider: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(divider);
+    startX.current = e.clientX;
+    startWidths.current = { ...columnWidths };
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const containerWidth = containerRect.width - 32; // Account for padding and gaps
+      const deltaX = e.clientX - startX.current;
+      const deltaPercent = (deltaX / containerWidth) * 100;
+
+      if (divider === 'ready-blocked') {
+        const newReadyWidth = Math.max(15, Math.min(70, startWidths.current.ready + deltaPercent));
+        const newBlockedWidth = Math.max(15, startWidths.current.blocked - deltaPercent);
+        
+        setColumnWidths(prev => ({
+          ...prev,
+          ready: newReadyWidth,
+          blocked: newBlockedWidth
+        }));
+      } else if (divider === 'blocked-completed') {
+        const newBlockedWidth = Math.max(15, Math.min(70, startWidths.current.blocked + deltaPercent));
+        const newCompletedWidth = Math.max(15, startWidths.current.completed - deltaPercent);
+        
+        setColumnWidths(prev => ({
+          ...prev,
+          blocked: newBlockedWidth,
+          completed: newCompletedWidth
+        }));
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(null);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   };
 
   return (
@@ -106,39 +163,78 @@ export const MainLayout: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex p-4 gap-4 overflow-hidden">
+      <div 
+        ref={containerRef}
+        className="flex-1 flex p-4 gap-1 overflow-hidden h-0"
+        style={{ userSelect: isDragging ? 'none' : 'auto' }}
+      >
         {/* Ready List */}
-        <TaskList 
-          title="Ready List" 
-          status={EventStatus.Pending} 
-          onEventSelect={handleEventSelect}
-          onEventEdit={handleEditEvent}
-          onEventDelete={handleDeleteEvent}
-          onEventComplete={handleCompleteEvent}
-          selectedEvent={selectedEvent}
-        />
+        <div 
+          className="flex flex-col overflow-hidden h-full"
+          style={{ width: `${columnWidths.ready}%`, minWidth: '200px' }}
+        >
+          <TaskList 
+            title="Ready List" 
+            status={EventStatus.Pending} 
+            onEventSelect={handleEventSelect}
+            onEventEdit={handleEditEvent}
+            onEventDelete={handleDeleteEvent}
+            onEventComplete={handleCompleteEvent}
+            selectedEvent={selectedEvent}
+          />
+        </div>
+
+        {/* Resizer between Ready and Blocked */}
+        <div
+          className={`w-2 cursor-col-resize flex items-center justify-center group hover:bg-gray-200 transition-colors ${
+            isDragging === 'ready-blocked' ? 'bg-blue-200' : ''
+          }`}
+          onMouseDown={handleMouseDown('ready-blocked')}
+        >
+          <div className="w-1 h-8 bg-gray-300 rounded group-hover:bg-gray-400 transition-colors"></div>
+        </div>
 
         {/* Blocked List */}
-        <TaskList 
-          title="Blocked List" 
-          status={EventStatus.Blocked} 
-          onEventSelect={handleEventSelect}
-          onEventEdit={handleEditEvent}
-          onEventDelete={handleDeleteEvent}
-          selectedEvent={selectedEvent}
-          showDependencies={true}
-        />
+        <div 
+          className="flex flex-col overflow-hidden h-full"
+          style={{ width: `${columnWidths.blocked}%`, minWidth: '200px' }}
+        >
+          <TaskList 
+            title="Blocked List" 
+            status={EventStatus.Blocked} 
+            onEventSelect={handleEventSelect}
+            onEventEdit={handleEditEvent}
+            onEventDelete={handleDeleteEvent}
+            selectedEvent={selectedEvent}
+            showDependencies={true}
+          />
+        </div>
+
+        {/* Resizer between Blocked and Completed */}
+        <div
+          className={`w-2 cursor-col-resize flex items-center justify-center group hover:bg-gray-200 transition-colors ${
+            isDragging === 'blocked-completed' ? 'bg-blue-200' : ''
+          }`}
+          onMouseDown={handleMouseDown('blocked-completed')}
+        >
+          <div className="w-1 h-8 bg-gray-300 rounded group-hover:bg-gray-400 transition-colors"></div>
+        </div>
 
         {/* Completed List */}
-        <TaskList 
-          title="Completed List" 
-          status={EventStatus.Completed} 
-          onEventSelect={handleEventSelect}
-          onEventEdit={handleEditEvent}
-          onEventDelete={handleDeleteEvent}
-          selectedEvent={selectedEvent}
-          showDependencies={true}
-        />
+        <div 
+          className="flex flex-col overflow-hidden h-full"
+          style={{ width: `${columnWidths.completed}%`, minWidth: '200px' }}
+        >
+          <TaskList 
+            title="Completed List" 
+            status={EventStatus.Completed} 
+            onEventSelect={handleEventSelect}
+            onEventEdit={handleEditEvent}
+            onEventDelete={handleDeleteEvent}
+            selectedEvent={selectedEvent}
+            showDependencies={true}
+          />
+        </div>
       </div>
 
       {/* Status Bar */}

@@ -25,6 +25,9 @@ export const MainLayout: React.FC = () => {
   const startX = useRef<number>(0);
   const startWidths = useRef<{ ready: number; blocked: number; completed: number }>({ ready: 0, blocked: 0, completed: 0 });
   
+  // Drag and drop state for tasks
+  const [draggedEvent, setDraggedEvent] = useState<TodoEvent | null>(null);
+  
   // Initialize events loading
   useEffect(() => {
     fetchEvents();
@@ -64,6 +67,42 @@ export const MainLayout: React.FC = () => {
   const handleDatabaseChange = async (dbPath: string) => {
     // Reload events from the new database
     await fetchEvents();
+  };
+
+  // Handle task drag and drop
+  const handleTaskDragStart = (event: TodoEvent) => {
+    console.log('🎯 Drag started for event:', event.name, event.id);
+    setDraggedEvent(event);
+  };
+
+  const handleTaskDragEnd = () => {
+    console.log('🎯 Drag ended');
+    setDraggedEvent(null);
+  };
+
+  const handleTaskDrop = async (targetStatus: EventStatus) => {
+    console.log('🎯 Drop event triggered:', {
+      draggedEvent: draggedEvent?.name,
+      draggedEventId: draggedEvent?.id,
+      currentStatus: draggedEvent?.status,
+      targetStatus
+    });
+
+    if (!draggedEvent || draggedEvent.status === targetStatus) {
+      console.log('🎯 Drop cancelled - no dragged event or same status');
+      return;
+    }
+
+    try {
+      console.log('🎯 Calling updateEventStatus...');
+      await updateEventStatus(draggedEvent.id, targetStatus);
+      console.log('🎯 Status update completed, refreshing events...');
+      // Refresh events to ensure UI is in sync
+      await fetchEvents();
+      console.log('🎯 Events refreshed successfully');
+    } catch (error) {
+      console.error('🎯 Failed to update event status:', error);
+    }
   };
 
   // Handle column resizing
@@ -181,6 +220,10 @@ export const MainLayout: React.FC = () => {
             onEventDelete={handleDeleteEvent}
             onEventComplete={handleCompleteEvent}
             selectedEvent={selectedEvent}
+            onTaskDragStart={handleTaskDragStart}
+            onTaskDragEnd={handleTaskDragEnd}
+            onTaskDrop={handleTaskDrop}
+            draggedEvent={draggedEvent}
           />
         </div>
 
@@ -207,6 +250,10 @@ export const MainLayout: React.FC = () => {
             onEventDelete={handleDeleteEvent}
             selectedEvent={selectedEvent}
             showDependencies={true}
+            onTaskDragStart={handleTaskDragStart}
+            onTaskDragEnd={handleTaskDragEnd}
+            onTaskDrop={handleTaskDrop}
+            draggedEvent={draggedEvent}
           />
         </div>
 
@@ -233,6 +280,10 @@ export const MainLayout: React.FC = () => {
             onEventDelete={handleDeleteEvent}
             selectedEvent={selectedEvent}
             showDependencies={true}
+            onTaskDragStart={handleTaskDragStart}
+            onTaskDragEnd={handleTaskDragEnd}
+            onTaskDrop={handleTaskDrop}
+            draggedEvent={draggedEvent}
           />
         </div>
       </div>

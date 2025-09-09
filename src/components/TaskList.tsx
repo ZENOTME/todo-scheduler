@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { TodoEvent, EventStatus } from '@/types';
 import { useEventStore } from '@/store/eventStore';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { TagDisplay } from './TagDisplay';
+
 import { 
   CheckCircle, 
   Clock, 
@@ -27,6 +28,10 @@ interface TaskListProps {
   onEventComplete?: (event: TodoEvent) => void;
   selectedEvent: TodoEvent | null;
   showDependencies?: boolean;
+  onTaskDragStart?: (event: TodoEvent) => void;
+  onTaskDragEnd?: () => void;
+  onTaskDrop?: (targetStatus: EventStatus) => void;
+  draggedEvent?: TodoEvent | null;
 }
 
 const statusIcons = {
@@ -52,11 +57,17 @@ export const TaskList: React.FC<TaskListProps> = ({
   onEventComplete,
   selectedEvent,
   showDependencies = false,
+  onTaskDragStart,
+  onTaskDragEnd,
+  onTaskDrop,
+  draggedEvent,
 }) => {
   const { events, fetchEvents, getEventDependencies, getSortedEvents } = useEventStore();
   const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({});
   const [dependencies, setDependencies] = useState<Record<string, TodoEvent[]>>({});
   const [loading, setLoading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchEvents();
@@ -77,6 +88,94 @@ export const TaskList: React.FC<TaskListProps> = ({
     // Check dependency status when event list changes
     checkDependenciesStatus();
   }, [events]);
+
+  // Mouse-based drag detection
+  useEffect(() => {
+    if (!draggedEvent) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+
+      // Check if mouse is over this container
+      const isOverContainer = 
+        mouseX >= containerRect.left &&
+        mouseX <= containerRect.right &&
+        mouseY >= containerRect.top &&
+        mouseY <= containerRect.bottom;
+
+      if (isOverContainer && draggedEvent.status !== status) {
+        // Simulate dragged card dimensions
+        const cardWidth = 300;
+        const cardHeight = 120;
+        
+        // Calculate simulated card position (centered on mouse)
+        const cardLeft = mouseX - cardWidth / 2;
+        const cardRight = mouseX + cardWidth / 2;
+        const cardTop = mouseY - cardHeight / 2;
+        const cardBottom = mouseY + cardHeight / 2;
+
+        // Calculate overlap
+        const overlapLeft = Math.max(cardLeft, containerRect.left);
+        const overlapRight = Math.min(cardRight, containerRect.right);
+        const overlapTop = Math.max(cardTop, containerRect.top);
+        const overlapBottom = Math.min(cardBottom, containerRect.bottom);
+
+        const overlapWidth = Math.max(0, overlapRight - overlapLeft);
+        const overlapHeight = Math.max(0, overlapBottom - overlapTop);
+        const overlapArea = overlapWidth * overlapHeight;
+        const cardArea = cardWidth * cardHeight;
+        const overlapRatio = overlapArea / cardArea;
+
+        console.log('🎯 Mouse drag detection for', title, {
+          mouseX, mouseY,
+          containerRect: { left: containerRect.left, right: containerRect.right, top: containerRect.top, bottom: containerRect.bottom },
+          cardRect: { left: cardLeft, right: cardRight, top: cardTop, bottom: cardBottom },
+          overlapArea,
+          cardArea,
+          overlapRatio: (overlapRatio * 100).toFixed(1) + '%',
+          shouldHighlight: overlapRatio > 0.5
+        });
+
+        setIsDragOver(overlapRatio > 0.5);
+      } else {
+        setIsDragOver(false);
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+
+      // Check if mouse is over this container when released
+      const isOverContainer = 
+        mouseX >= containerRect.left &&
+        mouseX <= containerRect.right &&
+        mouseY >= containerRect.top &&
+        mouseY <= containerRect.bottom;
+
+      if (isOverContainer && isDragOver && onTaskDrop && draggedEvent.status !== status) {
+        console.log('🎯 Mouse-based drop on', title, 'with status:', status);
+        onTaskDrop(status);
+      }
+
+      setIsDragOver(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [draggedEvent, status, isDragOver, onTaskDrop, title]);
 
   // Filter events by status and apply sorting
   const baseFilteredEvents = events.filter(event => event.status === status);
@@ -117,8 +216,71 @@ export const TaskList: React.FC<TaskListProps> = ({
     });
   };
 
+  // Handle drag and drop events with area-based logic
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('🎯 handleDragEnter triggered for list:', title, 'draggedEvent:', draggedEvent?.name);
+    
+    if (draggedEvent && draggedEvent.status !== status) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('🎯 handleDragLeave triggered for list:', title);
+    
+    // 检查是否真的离开了容器
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('🎯 handleDrop triggered for list:', title, 'target status:', status);
+    setIsDragOver(false);
+    
+    if (onTaskDrop && draggedEvent && draggedEvent.status !== status) {
+      console.log('🎯 Calling onTaskDrop with status:', status);
+      onTaskDrop(status);
+    } else {
+      console.log('🎯 Drop conditions not met:', {
+        hasOnTaskDrop: !!onTaskDrop,
+        hasDraggedEvent: !!draggedEvent,
+        draggedEventStatus: draggedEvent?.status,
+        targetStatus: status,
+        statusDifferent: draggedEvent?.status !== status
+      });
+    }
+  };
+
   return (
-    <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+    <div 
+      ref={containerRef}
+      className={`flex-1 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col overflow-hidden transition-all ${
+        isDragOver ? 'bg-gray-100 border-gray-400 shadow-md' : ''
+      }`}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* Header */}
       <div className="p-4 border-b border-gray-200 flex items-center justify-between">
         <div className="flex items-center">
@@ -141,6 +303,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       {/* Event List */}
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-3">
+
           {filteredEvents.length === 0 ? (
             <div className="text-center py-8 text-gray-500 text-sm">
               No {title.toLowerCase()}
@@ -149,11 +312,36 @@ export const TaskList: React.FC<TaskListProps> = ({
             filteredEvents.map((event) => (
               <div key={event.id} className="space-y-2">
                 <Card
+                  data-event-id={event.id}
+                  draggable={!!onTaskDragStart}
+                  onDragStart={(e) => {
+                    console.log('🎯 Card drag start:', event.name);
+                    e.dataTransfer.effectAllowed = 'move';
+                    
+                    // 设置多种数据格式
+                    e.dataTransfer.setData('text/plain', event.id);
+                    e.dataTransfer.setData('application/json', JSON.stringify({
+                      id: event.id,
+                      name: event.name,
+                      status: event.status
+                    }));
+                    
+                    if (onTaskDragStart) {
+                      onTaskDragStart(event);
+                    }
+                  }}
+                  onDragEnd={(e) => {
+                    console.log('🎯 Card drag end:', event.name);
+                    if (onTaskDragEnd) {
+                      onTaskDragEnd();
+                    }
+                  }}
                   className={`
-                    group transition-all duration-200 hover:shadow-md
+                    group transition-all duration-200 hover:shadow-md cursor-move
                     ${selectedEvent?.id === event.id 
                       ? 'ring-2 ring-primary-500 shadow-md' 
                       : 'hover:ring-1 hover:ring-gray-300'}
+                    ${draggedEvent?.id === event.id ? 'opacity-50' : ''}
                   `}
                 >
                   <CardContent className="p-3">
@@ -324,6 +512,8 @@ export const TaskList: React.FC<TaskListProps> = ({
           )}
         </div>
       </ScrollArea>
+      
+
     </div>
   );
 };

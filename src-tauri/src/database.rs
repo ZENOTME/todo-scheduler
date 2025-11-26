@@ -159,7 +159,19 @@ impl Database {
         if let Some(mut event) = self.get_event(&request.id)? {
             let old_status = event.status;
             println!("update event: {:?}", event);
+            
+            // Check if dependencies are being updated
+            let dependencies_changed = request.dependencies.is_some();
+            
             event.update(request);
+
+            // If dependencies changed, recalculate status
+            // (unless the status is Completed or InProgress, which should be set manually)
+            if dependencies_changed && event.status != EventStatus::Completed && event.status != EventStatus::InProgress {
+                let calculated_status = self.calculate_event_status(&event)?;
+                println!("🔄 Dependencies changed, recalculated status: {:?} -> {:?}", event.status, calculated_status);
+                event.status = calculated_status;
+            }
 
             let tags_json = serde_json::to_string(&event.tags).unwrap();
             let dependencies_json = serde_json::to_string(&event.dependencies).unwrap();
@@ -250,8 +262,6 @@ impl Database {
             event.updated_at = Utc::now();
 
             // 保存当前事件
-            let tags_json = serde_json::to_string(&event.tags).unwrap();
-            let dependencies_json = serde_json::to_string(&event.dependencies).unwrap();
             let status_str = match event.status {
                 EventStatus::Pending => "pending",
                 EventStatus::InProgress => "in_progress",

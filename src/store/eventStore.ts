@@ -185,18 +185,24 @@ export const useEventStore = create<EventStore>()(
       console.log('🏪 Update event result:', updatedEvent);
       
       if (updatedEvent) {
-        const { events } = get();
-        // Ensure tags and dependencies are always objects/arrays, never null/undefined
-        const safeUpdatedEvent = {
-          ...updatedEvent,
-          tags: updatedEvent.tags || {},
-          dependencies: updatedEvent.dependencies || [],
-        };
-        const updatedEvents = events.map(event => 
-          event.id === safeUpdatedEvent.id ? safeUpdatedEvent : event
-        );
-        set({ events: updatedEvents, loading: false });
-        console.log('🏪 Events updated successfully');
+        // If dependencies changed, refresh all events to ensure status is up-to-date
+        if (request.dependencies !== undefined) {
+          console.log('🏪 Dependencies changed, refreshing all events');
+          await get().fetchEvents();
+        } else {
+          const { events } = get();
+          // Ensure tags and dependencies are always objects/arrays, never null/undefined
+          const safeUpdatedEvent = {
+            ...updatedEvent,
+            tags: updatedEvent.tags || {},
+            dependencies: updatedEvent.dependencies || [],
+          };
+          const updatedEvents = events.map(event => 
+            event.id === safeUpdatedEvent.id ? safeUpdatedEvent : event
+          );
+          set({ events: updatedEvents, loading: false });
+          console.log('🏪 Events updated successfully');
+        }
       } else {
         console.warn('🏪 Update event returned null, event not found');
         set({ loading: false, error: '事件未找到' });

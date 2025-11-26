@@ -76,8 +76,10 @@ export const EventFormDialog: React.FC<EventFormDialogProps> = ({
         description: event.description,
         status: event.status,
       });
-      setTags(event.tags);
-      setDependencies(event.dependencies);
+      // Ensure tags is always an object, never undefined or null
+      setTags(event.tags || {});
+      // Ensure dependencies is always an array, never undefined or null
+      setDependencies(event.dependencies || []);
     } else {
       reset({
         name: '',
@@ -106,24 +108,26 @@ export const EventFormDialog: React.FC<EventFormDialogProps> = ({
         const request: CreateEventRequest = {
           name: data.name,
           description: data.description,
-          tags,
-          dependencies,
+          tags: tags || {},
+          dependencies: dependencies || [],
         };
         await createEvent(request);
+        onOpenChange(false);
       } else if (event) {
         const request: UpdateEventRequest = {
           id: event.id,
           name: data.name,
           description: data.description,
           status: data.status,
-          tags,
-          dependencies,
+          tags: tags || {},
+          dependencies: dependencies || [],
         };
         await updateEvent(request);
+        onOpenChange(false);
       }
-      onOpenChange(false);
     } catch (error) {
       console.error('Failed to save event:', error);
+      // Don't close dialog on error, let user see the error and retry
     }
   };
 
@@ -248,7 +252,7 @@ export const EventFormDialog: React.FC<EventFormDialogProps> = ({
               </div>
 
               {/* Existing Tags */}
-              {Object.keys(tags).length > 0 && (
+              {tags && Object.keys(tags).length > 0 && (
                 <div className="space-y-2">
                   <Label className="text-sm text-gray-600">当前标签</Label>
                   <div className="flex flex-wrap gap-2">

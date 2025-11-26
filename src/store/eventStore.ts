@@ -115,8 +115,11 @@ export const useEventStore = create<EventStore>()(
 
         return [...events].sort((a, b) => {
           for (const rule of sortPreferences.tagSortRules) {
-            const aValue = a.tags[rule.tagKey] || '';
-            const bValue = b.tags[rule.tagKey] || '';
+            // Safely access tags with null/undefined check
+            const aTags = a.tags || {};
+            const bTags = b.tags || {};
+            const aValue = aTags[rule.tagKey] || '';
+            const bValue = bTags[rule.tagKey] || '';
             
             // Handle numeric values
             const aNum = parseFloat(aValue);
@@ -144,7 +147,13 @@ export const useEventStore = create<EventStore>()(
     try {
       set({ loading: true, error: null });
       const events = await invoke<TodoEvent[]>('get_all_events');
-      set({ events, loading: false });
+      // Ensure all events have safe tags and dependencies
+      const safeEvents = events.map(event => ({
+        ...event,
+        tags: event.tags || {},
+        dependencies: event.dependencies || [],
+      }));
+      set({ events: safeEvents, loading: false });
     } catch (error) {
       set({ error: error as string, loading: false });
     }
@@ -154,26 +163,48 @@ export const useEventStore = create<EventStore>()(
     try {
       set({ loading: true, error: null });
       const newEvent = await invoke<TodoEvent>('create_event', { request });
+      // Ensure tags and dependencies are always objects/arrays, never null/undefined
+      const safeNewEvent = {
+        ...newEvent,
+        tags: newEvent.tags || {},
+        dependencies: newEvent.dependencies || [],
+      };
       const { events } = get();
-      set({ events: [newEvent, ...events], loading: false });
+      set({ events: [safeNewEvent, ...events], loading: false });
     } catch (error) {
       set({ error: error as string, loading: false });
+      throw error; // Re-throw to allow caller to handle
     }
   },
 
   updateEvent: async (request) => {
     try {
       set({ loading: true, error: null });
+      console.log('🏪 Updating event:', request);
       const updatedEvent = await invoke<TodoEvent | null>('update_event', { request });
+      console.log('🏪 Update event result:', updatedEvent);
+      
       if (updatedEvent) {
         const { events } = get();
+        // Ensure tags and dependencies are always objects/arrays, never null/undefined
+        const safeUpdatedEvent = {
+          ...updatedEvent,
+          tags: updatedEvent.tags || {},
+          dependencies: updatedEvent.dependencies || [],
+        };
         const updatedEvents = events.map(event => 
-          event.id === updatedEvent.id ? updatedEvent : event
+          event.id === safeUpdatedEvent.id ? safeUpdatedEvent : event
         );
         set({ events: updatedEvents, loading: false });
+        console.log('🏪 Events updated successfully');
+      } else {
+        console.warn('🏪 Update event returned null, event not found');
+        set({ loading: false, error: '事件未找到' });
       }
     } catch (error) {
+      console.error('🏪 Update event error:', error);
       set({ error: error as string, loading: false });
+      throw error; // Re-throw to allow caller to handle
     }
   },
 

@@ -10,14 +10,15 @@ interface TagDisplayProps {
 export const TagDisplay: React.FC<TagDisplayProps> = ({ tags, className = "" }) => {
   const { sortPreferences } = useEventStore();
 
-  if (Object.keys(tags).length === 0) {
-    return null;
-  }
-
-  const tagEntries = Object.entries(tags);
-
-  // Sort tags based on user preferences
+  // Sort tags based on user preferences - must be called before any conditional returns
   const sortedTags = React.useMemo(() => {
+    // Safely handle undefined or null tags
+    if (!tags || Object.keys(tags).length === 0) {
+      return [];
+    }
+    
+    const tagEntries = Object.entries(tags);
+    
     if (sortPreferences.enabled && sortPreferences.tagSortRules.length > 0) {
       return [...tagEntries].sort(([keyA], [keyB]) => {
         const ruleA = sortPreferences.tagSortRules.find(rule => rule.tagKey === keyA);
@@ -39,7 +40,12 @@ export const TagDisplay: React.FC<TagDisplayProps> = ({ tags, className = "" }) 
     
     // Default alphabetical sorting
     return tagEntries.sort(([keyA], [keyB]) => keyA.localeCompare(keyB));
-  }, [tagEntries, sortPreferences]);
+  }, [tags, sortPreferences]);
+
+  // Return null after all hooks have been called
+  if (sortedTags.length === 0) {
+    return null;
+  }
 
   return (
     <div className={`flex flex-wrap gap-1 ${className}`}>

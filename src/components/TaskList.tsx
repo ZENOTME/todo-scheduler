@@ -71,7 +71,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   useEffect(() => {
     fetchEvents();
-  }, [fetchEvents]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch events when event status changes
   useEffect(() => {
@@ -387,7 +387,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                         )}
 
                         {/* Tags */}
-                        <TagDisplay tags={event.tags} className="mb-2" />
+                        <TagDisplay tags={event.tags || {}} className="mb-2" />
 
                         {/* Bottom info */}
                         <div className="flex items-center justify-between text-xs text-gray-500">

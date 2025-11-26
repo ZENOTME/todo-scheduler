@@ -40,7 +40,10 @@ export const TagSortManager: React.FC<TagSortManagerProps> = ({ trigger }) => {
   useEffect(() => {
     const tagKeys = new Set<string>();
     events.forEach(event => {
-      Object.keys(event.tags).forEach(key => tagKeys.add(key));
+      // Safely handle undefined or null tags
+      if (event.tags) {
+        Object.keys(event.tags).forEach(key => tagKeys.add(key));
+      }
     });
     setAvailableTags(Array.from(tagKeys).sort());
   }, [events]);
@@ -92,7 +95,11 @@ export const TagSortManager: React.FC<TagSortManagerProps> = ({ trigger }) => {
 
   const getTagValuePreview = (tagKey: string) => {
     const allValues = events
-      .map(event => event.tags[tagKey])
+      .map(event => {
+        // Safely handle undefined or null tags
+        const tags = event.tags || {};
+        return tags[tagKey];
+      })
       .filter(Boolean);
     
     if (allValues.length === 0) return 'No values';

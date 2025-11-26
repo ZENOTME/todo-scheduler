@@ -7,6 +7,44 @@ interface TagDisplayProps {
   className?: string;
 }
 
+// Predefined color palette for tag keys
+const TAG_COLORS = [
+  { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-300' },
+  { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-300' },
+  { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-300' },
+  { bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-300' },
+  { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-300' },
+  { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-300' },
+  { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-300' },
+  { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-300' },
+  { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-300' },
+  { bg: 'bg-cyan-100', text: 'text-cyan-800', border: 'border-cyan-300' },
+  { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-300' },
+  { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-300' },
+  { bg: 'bg-violet-100', text: 'text-violet-800', border: 'border-violet-300' },
+  { bg: 'bg-fuchsia-100', text: 'text-fuchsia-800', border: 'border-fuchsia-300' },
+  { bg: 'bg-rose-100', text: 'text-rose-800', border: 'border-rose-300' },
+  { bg: 'bg-sky-100', text: 'text-sky-800', border: 'border-sky-300' },
+];
+
+// Hash function to convert string to number
+const hashString = (str: string): number => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash);
+};
+
+// Get color for a tag key
+const getTagColor = (tagKey: string) => {
+  const hash = hashString(tagKey);
+  const colorIndex = hash % TAG_COLORS.length;
+  return TAG_COLORS[colorIndex];
+};
+
 export const TagDisplay: React.FC<TagDisplayProps> = ({ tags, className = "" }) => {
   const { sortPreferences } = useEventStore();
 
@@ -49,11 +87,18 @@ export const TagDisplay: React.FC<TagDisplayProps> = ({ tags, className = "" }) 
 
   return (
     <div className={`flex flex-wrap gap-1 ${className}`}>
-      {sortedTags.map(([key, value]) => (
-        <Badge key={key} variant="outline" className="text-xs">
-          {key}: {value}
-        </Badge>
-      ))}
+      {sortedTags.map(([key, value]) => {
+        const color = getTagColor(key);
+        return (
+          <Badge 
+            key={key} 
+            variant="outline" 
+            className={`text-xs ${color.bg} ${color.text} ${color.border} border`}
+          >
+            {key}: {value}
+          </Badge>
+        );
+      })}
     </div>
   );
 };
